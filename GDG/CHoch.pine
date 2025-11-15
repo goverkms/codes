@@ -28,6 +28,8 @@ var int lowestSinceHTime = na
 var float highestSinceLPrice = na
 var int highestSinceLIndex = na
 var int highestSinceLTime = na
+var bool highBreakLineDrawn = false
+var bool lowBreakLineDrawn = false
 
 if na(vLine)
     // Create the vertical line anchored to the desired timestamp.
@@ -59,6 +61,7 @@ if not haveHigh and not na(pivotHigh) and time[1] >= targetTimestamp
     lowestSinceHIndex := bar_index[1]
     lowestSinceHTime := time[1]
     haveHigh := true
+    highBreakLineDrawn := false
     label.new(
       currentHIndex,
       currentHPrice,
@@ -78,6 +81,7 @@ if not haveLow and not na(pivotLow) and time[1] >= targetTimestamp
     highestSinceLIndex := bar_index[1]
     highestSinceLTime := time[1]
     haveLow := true
+    lowBreakLineDrawn := false
     label.new(
       currentLIndex,
       currentLPrice,
@@ -96,15 +100,6 @@ if haveHigh and not na(pivotHigh) and pivotHigh > currentHPrice
     oldHPrice = currentHPrice
     oldHIndex = currentHIndex
     oldHTime = currentHTime
-    line.new(
-      x1=oldHTime,
-      y1=oldHPrice,
-      x2=newHTime,
-      y2=oldHPrice,
-      xloc=xloc.bar_time,
-      extend=extend.none,
-      color=highLabelColor,
-      width=1)
     label.new(
       newHIndex,
       newHPrice,
@@ -117,6 +112,7 @@ if haveHigh and not na(pivotHigh) and pivotHigh > currentHPrice
     currentHPrice := newHPrice
     currentHIndex := newHIndex
     currentHTime := newHTime
+    highBreakLineDrawn := false
     if not na(lowestSinceHPrice)
         label.new(
           lowestSinceHIndex,
@@ -131,6 +127,7 @@ if haveHigh and not na(pivotHigh) and pivotHigh > currentHPrice
         currentLIndex := lowestSinceHIndex
         currentLTime := lowestSinceHTime
         haveLow := true
+        lowBreakLineDrawn := false
     else
         label.new(
           bar_index,
@@ -145,6 +142,7 @@ if haveHigh and not na(pivotHigh) and pivotHigh > currentHPrice
         currentLIndex := bar_index
         currentLTime := time
         haveLow := true
+        lowBreakLineDrawn := false
     highestSinceLPrice := currentHPrice
     highestSinceLIndex := currentHIndex
     highestSinceLTime := currentHTime
@@ -159,15 +157,6 @@ if haveLow and not na(pivotLow) and pivotLow < currentLPrice
     oldLPrice = currentLPrice
     oldLIndex = currentLIndex
     oldLTime = currentLTime
-    line.new(
-      x1=oldLTime,
-      y1=oldLPrice,
-      x2=newLTime,
-      y2=oldLPrice,
-      xloc=xloc.bar_time,
-      extend=extend.none,
-      color=lowLabelColor,
-      width=1)
     label.new(
       newLIndex,
       newLPrice,
@@ -180,6 +169,7 @@ if haveLow and not na(pivotLow) and pivotLow < currentLPrice
     currentLPrice := newLPrice
     currentLIndex := newLIndex
     currentLTime := newLTime
+    lowBreakLineDrawn := false
     if not na(highestSinceLPrice)
         label.new(
           highestSinceLIndex,
@@ -194,6 +184,7 @@ if haveLow and not na(pivotLow) and pivotLow < currentLPrice
         currentHIndex := highestSinceLIndex
         currentHTime := highestSinceLTime
         haveHigh := true
+        highBreakLineDrawn := false
     else
         label.new(
           bar_index,
@@ -208,6 +199,7 @@ if haveLow and not na(pivotLow) and pivotLow < currentLPrice
         currentHIndex := bar_index
         currentHTime := time
         haveHigh := true
+        highBreakLineDrawn := false
     highestSinceLPrice := na
     highestSinceLIndex := na
     highestSinceLTime := na
@@ -227,3 +219,28 @@ if haveLow and bar_index > currentLIndex
         highestSinceLPrice := high
         highestSinceLIndex := bar_index
         highestSinceLTime := time
+
+// Draw horizontal lines from the current pivots until the first candle breaks them.
+if haveHigh and not highBreakLineDrawn and high > currentHPrice
+    line.new(
+      x1=currentHTime,
+      y1=currentHPrice,
+      x2=time,
+      y2=currentHPrice,
+      xloc=xloc.bar_time,
+      extend=extend.none,
+      color=highLabelColor,
+      width=1)
+    highBreakLineDrawn := true
+
+if haveLow and not lowBreakLineDrawn and low < currentLPrice
+    line.new(
+      x1=currentLTime,
+      y1=currentLPrice,
+      x2=time,
+      y2=currentLPrice,
+      xloc=xloc.bar_time,
+      extend=extend.none,
+      color=lowLabelColor,
+      width=1)
+    lowBreakLineDrawn := true
