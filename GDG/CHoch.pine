@@ -1,19 +1,12 @@
 //@version=5
 indicator("Vertical Line - 10 Nov 2025 03:30", overlay=true, max_lines_count=500, max_labels_count=500)
 
-// Allow the user to pick the timezone used for the timestamp, defaulting to UTC.
-tzInput = input.string("Etc/UTC", "Time zone")
-tzValue = str.length(tzInput) == 0 ? syminfo.timezone : tzInput
-lineColor = input.color(color.new(color.teal, 0), "Line color")
-lineWidth = input.int(2, "Line width", minval=1, maxval=4)
-lineStyle = line.style_solid
+barsBack = input.int(1000, "Bars back", minval=1)
 highLabelColor = input.color(color.new(color.orange, 0), "H label color")
 lowLabelColor = input.color(color.new(color.blue, 0), "L label color")
 labelTextColor = input.color(color.white, "Label text color")
 
-targetTimestamp = timestamp(tzValue, 2025, 11, 10, 3, 30)
-
-var line vLine = na
+var bool processingStarted = false
 var bool haveHigh = false
 var bool haveLow = false
 var float currentHPrice = na
@@ -31,216 +24,200 @@ var int highestSinceLTime = na
 var bool highBreakLineDrawn = false
 var bool lowBreakLineDrawn = false
 
-if na(vLine)
-    // Create the vertical line anchored to the desired timestamp.
-    vLine := line.new(
-      x1=targetTimestamp,
-      y1=close,
-      x2=targetTimestamp,
-      y2=close + syminfo.mintick,
-      xloc=xloc.bar_time,
-      extend=extend.both,
-      color=lineColor,
-      width=lineWidth,
-      style=lineStyle)
+if not processingStarted and bar_index >= barsBack
+    processingStarted := true
 
-// Keep the style properties in sync with the latest inputs.
-line.set_x1(vLine, targetTimestamp)
-line.set_x2(vLine, targetTimestamp)
-line.set_color(vLine, lineColor)
-line.set_width(vLine, lineWidth)
-line.set_style(vLine, lineStyle)
-
-// Determine the first qualifying high and low to the right of the vertical line.
-pivotHigh = ta.pivothigh(high, 1, 1)
-if not haveHigh and not na(pivotHigh) and time[1] >= targetTimestamp
-    currentHPrice := high[1]
-    currentHIndex := bar_index[1]
-    currentHTime := time[1]
-    lowestSinceHPrice := low[1]
-    lowestSinceHIndex := bar_index[1]
-    lowestSinceHTime := time[1]
-    haveHigh := true
-    highBreakLineDrawn := false
-    label.new(
-      currentHIndex,
-      currentHPrice,
-      "H",
-      xloc=xloc.bar_index,
-      style=label.style_label_down,
-      color=highLabelColor,
-      textcolor=labelTextColor,
-      textalign=text.align_center)
-
-pivotLow = ta.pivotlow(low, 1, 1)
-if not haveLow and not na(pivotLow) and time[1] >= targetTimestamp
-    currentLPrice := low[1]
-    currentLIndex := bar_index[1]
-    currentLTime := time[1]
-    highestSinceLPrice := high[1]
-    highestSinceLIndex := bar_index[1]
-    highestSinceLTime := time[1]
-    haveLow := true
-    lowBreakLineDrawn := false
-    label.new(
-      currentLIndex,
-      currentLPrice,
-      "L",
-      xloc=xloc.bar_index,
-      style=label.style_label_up,
-      color=lowLabelColor,
-      textcolor=labelTextColor,
-      textalign=text.align_center)
-
-// Only treat breakouts as new pivots when the breakout candle is also a pivot relative to its neighbors.
-if haveHigh and not na(pivotHigh) and pivotHigh > currentHPrice
-    newHPrice = pivotHigh
-    newHIndex = bar_index[1]
-    newHTime = time[1]
-    oldHPrice = currentHPrice
-    oldHIndex = currentHIndex
-    oldHTime = currentHTime
-    label.new(
-      newHIndex,
-      newHPrice,
-      "H",
-      xloc=xloc.bar_index,
-      style=label.style_label_down,
-      color=highLabelColor,
-      textcolor=labelTextColor,
-      textalign=text.align_center)
-    currentHPrice := newHPrice
-    currentHIndex := newHIndex
-    currentHTime := newHTime
-    highBreakLineDrawn := false
-    if not na(lowestSinceHPrice)
+if processingStarted
+    // Determine the first qualifying high and low once the processing window is reached.
+    pivotHigh = ta.pivothigh(high, 1, 1)
+    if not haveHigh and not na(pivotHigh)
+        currentHPrice := high[1]
+        currentHIndex := bar_index[1]
+        currentHTime := time[1]
+        lowestSinceHPrice := low[1]
+        lowestSinceHIndex := bar_index[1]
+        lowestSinceHTime := time[1]
+        haveHigh := true
+        highBreakLineDrawn := false
         label.new(
-          lowestSinceHIndex,
-          lowestSinceHPrice,
-          "L",
-          xloc=xloc.bar_index,
-          style=label.style_label_up,
-          color=lowLabelColor,
-          textcolor=labelTextColor,
-          textalign=text.align_center)
-        currentLPrice := lowestSinceHPrice
-        currentLIndex := lowestSinceHIndex
-        currentLTime := lowestSinceHTime
-        haveLow := true
-        lowBreakLineDrawn := false
-    else
-        label.new(
-          bar_index,
-          low,
-          "L",
-          xloc=xloc.bar_index,
-          style=label.style_label_up,
-          color=lowLabelColor,
-          textcolor=labelTextColor,
-          textalign=text.align_center)
-        currentLPrice := low
-        currentLIndex := bar_index
-        currentLTime := time
-        haveLow := true
-        lowBreakLineDrawn := false
-    highestSinceLPrice := currentHPrice
-    highestSinceLIndex := currentHIndex
-    highestSinceLTime := currentHTime
-    lowestSinceHPrice := na
-    lowestSinceHIndex := na
-    lowestSinceHTime := na
-
-if haveLow and not na(pivotLow) and pivotLow < currentLPrice
-    newLPrice = pivotLow
-    newLIndex = bar_index[1]
-    newLTime = time[1]
-    oldLPrice = currentLPrice
-    oldLIndex = currentLIndex
-    oldLTime = currentLTime
-    label.new(
-      newLIndex,
-      newLPrice,
-      "L",
-      xloc=xloc.bar_index,
-      style=label.style_label_up,
-      color=lowLabelColor,
-      textcolor=labelTextColor,
-      textalign=text.align_center)
-    currentLPrice := newLPrice
-    currentLIndex := newLIndex
-    currentLTime := newLTime
-    lowBreakLineDrawn := false
-    if not na(highestSinceLPrice)
-        label.new(
-          highestSinceLIndex,
-          highestSinceLPrice,
+          currentHIndex,
+          currentHPrice,
           "H",
           xloc=xloc.bar_index,
           style=label.style_label_down,
           color=highLabelColor,
           textcolor=labelTextColor,
           textalign=text.align_center)
-        currentHPrice := highestSinceLPrice
-        currentHIndex := highestSinceLIndex
-        currentHTime := highestSinceLTime
-        haveHigh := true
-        highBreakLineDrawn := false
-    else
+
+    pivotLow = ta.pivotlow(low, 1, 1)
+    if not haveLow and not na(pivotLow)
+        currentLPrice := low[1]
+        currentLIndex := bar_index[1]
+        currentLTime := time[1]
+        highestSinceLPrice := high[1]
+        highestSinceLIndex := bar_index[1]
+        highestSinceLTime := time[1]
+        haveLow := true
+        lowBreakLineDrawn := false
         label.new(
-          bar_index,
-          high,
+          currentLIndex,
+          currentLPrice,
+          "L",
+          xloc=xloc.bar_index,
+          style=label.style_label_up,
+          color=lowLabelColor,
+          textcolor=labelTextColor,
+          textalign=text.align_center)
+
+    // Only treat breakouts as new pivots when the breakout candle is also a pivot relative to its neighbors.
+    if haveHigh and not na(pivotHigh) and pivotHigh > currentHPrice
+        newHPrice = pivotHigh
+        newHIndex = bar_index[1]
+        newHTime = time[1]
+        oldHPrice = currentHPrice
+        oldHIndex = currentHIndex
+        oldHTime = currentHTime
+        label.new(
+          newHIndex,
+          newHPrice,
           "H",
           xloc=xloc.bar_index,
           style=label.style_label_down,
           color=highLabelColor,
           textcolor=labelTextColor,
           textalign=text.align_center)
-        currentHPrice := high
-        currentHIndex := bar_index
-        currentHTime := time
-        haveHigh := true
+        currentHPrice := newHPrice
+        currentHIndex := newHIndex
+        currentHTime := newHTime
         highBreakLineDrawn := false
-    highestSinceLPrice := na
-    highestSinceLIndex := na
-    highestSinceLTime := na
-    lowestSinceHPrice := currentLPrice
-    lowestSinceHIndex := currentLIndex
-    lowestSinceHTime := currentLTime
+        if not na(lowestSinceHPrice)
+            label.new(
+              lowestSinceHIndex,
+              lowestSinceHPrice,
+              "L",
+              xloc=xloc.bar_index,
+              style=label.style_label_up,
+              color=lowLabelColor,
+              textcolor=labelTextColor,
+              textalign=text.align_center)
+            currentLPrice := lowestSinceHPrice
+            currentLIndex := lowestSinceHIndex
+            currentLTime := lowestSinceHTime
+            haveLow := true
+            lowBreakLineDrawn := false
+        else
+            label.new(
+              bar_index,
+              low,
+              "L",
+              xloc=xloc.bar_index,
+              style=label.style_label_up,
+              color=lowLabelColor,
+              textcolor=labelTextColor,
+              textalign=text.align_center)
+            currentLPrice := low
+            currentLIndex := bar_index
+            currentLTime := time
+            haveLow := true
+            lowBreakLineDrawn := false
+        highestSinceLPrice := currentHPrice
+        highestSinceLIndex := currentHIndex
+        highestSinceLTime := currentHTime
+        lowestSinceHPrice := na
+        lowestSinceHIndex := na
+        lowestSinceHTime := na
 
-// Update the running extremes between the latest H and L using data from the current bar.
-if haveHigh and bar_index > currentHIndex
-    if na(lowestSinceHPrice) or low < lowestSinceHPrice
-        lowestSinceHPrice := low
-        lowestSinceHIndex := bar_index
-        lowestSinceHTime := time
+    if haveLow and not na(pivotLow) and pivotLow < currentLPrice
+        newLPrice = pivotLow
+        newLIndex = bar_index[1]
+        newLTime = time[1]
+        oldLPrice = currentLPrice
+        oldLIndex = currentLIndex
+        oldLTime = currentLTime
+        label.new(
+          newLIndex,
+          newLPrice,
+          "L",
+          xloc=xloc.bar_index,
+          style=label.style_label_up,
+          color=lowLabelColor,
+          textcolor=labelTextColor,
+          textalign=text.align_center)
+        currentLPrice := newLPrice
+        currentLIndex := newLIndex
+        currentLTime := newLTime
+        lowBreakLineDrawn := false
+        if not na(highestSinceLPrice)
+            label.new(
+              highestSinceLIndex,
+              highestSinceLPrice,
+              "H",
+              xloc=xloc.bar_index,
+              style=label.style_label_down,
+              color=highLabelColor,
+              textcolor=labelTextColor,
+              textalign=text.align_center)
+            currentHPrice := highestSinceLPrice
+            currentHIndex := highestSinceLIndex
+            currentHTime := highestSinceLTime
+            haveHigh := true
+            highBreakLineDrawn := false
+        else
+            label.new(
+              bar_index,
+              high,
+              "H",
+              xloc=xloc.bar_index,
+              style=label.style_label_down,
+              color=highLabelColor,
+              textcolor=labelTextColor,
+              textalign=text.align_center)
+            currentHPrice := high
+            currentHIndex := bar_index
+            currentHTime := time
+            haveHigh := true
+            highBreakLineDrawn := false
+        highestSinceLPrice := na
+        highestSinceLIndex := na
+        highestSinceLTime := na
+        lowestSinceHPrice := currentLPrice
+        lowestSinceHIndex := currentLIndex
+        lowestSinceHTime := currentLTime
 
-if haveLow and bar_index > currentLIndex
-    if na(highestSinceLPrice) or high > highestSinceLPrice
-        highestSinceLPrice := high
-        highestSinceLIndex := bar_index
-        highestSinceLTime := time
+    // Update the running extremes between the latest H and L using data from the current bar.
+    if haveHigh and bar_index > currentHIndex
+        if na(lowestSinceHPrice) or low < lowestSinceHPrice
+            lowestSinceHPrice := low
+            lowestSinceHIndex := bar_index
+            lowestSinceHTime := time
 
-// Draw horizontal lines from the current pivots until the first candle breaks them.
-if haveHigh and not highBreakLineDrawn and high > currentHPrice
-    line.new(
-      x1=currentHTime,
-      y1=currentHPrice,
-      x2=time,
-      y2=currentHPrice,
-      xloc=xloc.bar_time,
-      extend=extend.none,
-      color=highLabelColor,
-      width=1)
-    highBreakLineDrawn := true
+    if haveLow and bar_index > currentLIndex
+        if na(highestSinceLPrice) or high > highestSinceLPrice
+            highestSinceLPrice := high
+            highestSinceLIndex := bar_index
+            highestSinceLTime := time
 
-if haveLow and not lowBreakLineDrawn and low < currentLPrice
-    line.new(
-      x1=currentLTime,
-      y1=currentLPrice,
-      x2=time,
-      y2=currentLPrice,
-      xloc=xloc.bar_time,
-      extend=extend.none,
-      color=lowLabelColor,
-      width=1)
-    lowBreakLineDrawn := true
+    // Draw horizontal lines from the current pivots until the first candle breaks them.
+    if haveHigh and not highBreakLineDrawn and high > currentHPrice
+        line.new(
+          x1=currentHTime,
+          y1=currentHPrice,
+          x2=time,
+          y2=currentHPrice,
+          xloc=xloc.bar_time,
+          extend=extend.none,
+          color=highLabelColor,
+          width=1)
+        highBreakLineDrawn := true
+
+    if haveLow and not lowBreakLineDrawn and low < currentLPrice
+        line.new(
+          x1=currentLTime,
+          y1=currentLPrice,
+          x2=time,
+          y2=currentLPrice,
+          xloc=xloc.bar_time,
+          extend=extend.none,
+          color=lowLabelColor,
+          width=1)
+        lowBreakLineDrawn := true
